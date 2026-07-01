@@ -58,7 +58,7 @@ const nest = { x: width / 2, y: height / 2 }   // Центр гнезда
 
 // Реактивная конфигурация (настройки, меняемые ползунками)
 const cfg = reactive({
-  antSpeed: 1.2,            // Скорость движения муравьёв (пикселей/кадр при 60 fps)
+  antSpeed: 1.2,            // Скорость движения муравьёв 
   perceptionRadius: 40,     // Дальность обзора муравья (еда, феромоны)
   foodPickupRadius: 10,     // Расстояние, на котором муравей подбирает еду
   enemySpeed: 0.8,          // Скорость пауков
@@ -144,8 +144,8 @@ function addRandomFoodSource() {
   // Тля появляется с некоторым шансом (30% по умолчанию)
   const hasAphids = Math.random() < 0.3
   foods.push({
-    id: Date.now() + Math.random(),
-    x, y,
+    id: Date.now() + Math.random(),   //для сощдания уникального id
+    x:x, y:y,
     amount: rnd(20, 50),            // текущий запас
     maxAmount: 50,                  // максимальный запас (для размера)
     aphids: hasAphids ? Math.floor(rnd(1, 4)) : 0   // количество тли (0-3)
@@ -163,10 +163,10 @@ function addRandomEnemy() {
   let x, y
   do {
     x = rnd(20, width - 20)
-    y = rnd(20, height - 20)
+    y = rnd(20, height - 20)                        //подбираем x y до тех пор пока
   } while (dist(x, y, nest.x, nest.y) < NEST_SIZE + 60) // не возле гнезда
   enemies.push({
-    id: Date.now() + Math.random(),
+    id: Date.now() + Math.random(),               //для уникального id
     x, y,
     angle: rnd(0, 2 * Math.PI),
     health: 5,
@@ -204,26 +204,39 @@ function initAnts() {
   const foragers = Math.floor(30 * 0.6)    // 60% фуражиров
   const workers = Math.floor(30 * 0.25)    // 25% рабочих
   const soldiers = 30 - foragers - workers  // оставшиеся – солдаты
+// Фуражиры
+for (let i = 0; i < foragers; i++) {
+  const pos = randPosInNest();
+  addAnt('forager', pos.x, pos.y);
+}
 
-  for (let i = 0; i < foragers; i++) addAnt('forager', ...Object.values(randPosInNest()))
-  for (let i = 0; i < soldiers; i++) addAnt('soldier', ...Object.values(randPosInNest()))
-  for (let i = 0; i < workers; i++) addAnt('worker', ...Object.values(randChamberPos(main)))
+// Солдаты
+for (let i = 0; i < soldiers; i++) {
+  const pos = randPosInNest();
+  addAnt('soldier', pos.x, pos.y);
+}
+
+// Рабочие (в главной камере)
+for (let i = 0; i < workers; i++) {
+  const pos = randChamberPos(main);
+  addAnt('worker', pos.x, pos.y);
+}
 }
 
 // Попытка добавить расплод (яйцо/личинку/куколку) в первую доступную камеру для расплода
 function addBroodToChamber(item) {
   for (const ch of chambers) {
-    // Расплод можно класть только в камеры типа 'brood'
+    // Расплод можно класть только в плодовых камерах и если есть место
     if (ch.type === 'brood' && ch.brood.length < CHAMBER_CAPACITY) {
       ch.brood.push({
-        ...item,
+        ...item,       // Копирует все свойства из переданного объекта  в новый 
         offX: rnd(-CHAMBER_RADIUS * 0.7, CHAMBER_RADIUS * 0.7),
         offY: rnd(-CHAMBER_RADIUS * 0.7, CHAMBER_RADIUS * 0.7)
       })
       return true
     }
   }
-  return false
+  return false        //тогда нужно строить новую камеру
 }
 
 // Проверка, не слишком ли близко новая позиция к уже существующим камерам или строящимся
@@ -236,9 +249,9 @@ function isPositionFree(x, y) {
   return true
 }
 
-// Начать строительство новой камеры указанного типа (по умолчанию 'brood')
+// Начать строительство новой камеры указанного типа 
 // Возвращает true, если строительство начато, иначе false
-function startBuilding(type = 'brood') {
+function startBuilding(type = 'brood') {  //(по умолчанию плодильня)
   if (colonyFood < buildCost.value || !autoBuild.value) return false
 
   // Найти родительскую камеру без активного строительства
@@ -272,18 +285,18 @@ function startBuilding(type = 'brood') {
 
 //  ПЕРЕРАСПРЕДЕЛЕНИЕ РОЛЕЙ 
 // Вызывается каждые 5 секунд, подстраивает численность солдат и рабочих под нужды колонии
-function reassignRoles(ts) {
+function reassignRoles(ts) {  //ts - тек. время
   if (ts - lastRoleReassign < 5000) return  // не чаще раза в 5 секунд
   lastRoleReassign = ts
 
   const totalAnts = ants.length
-  if (!totalAnts) return
+  if (!totalAnts) return    //Если нет уже муравьев
 
   // Считаем потребности: сколько личинок, сколько врагов
   const larvae = chambers.reduce((s, c) => s + c.brood.filter(b => b.type === 'larva').length, 0)
   const enemyCount = enemies.length
 
-  // Целевое количество солдат: 0 если врагов нет, иначе минимум 2, максимум 30% от всех
+  // Целевое количество солдат: 0 если врагов нет, иначе минимум 2, максимум 30% от всех муравьев
   const targetSoldiers = enemyCount
     ? Math.min(Math.floor(totalAnts * 0.3), Math.max(2, Math.ceil(enemyCount * 1.5)))
     : 0
@@ -333,17 +346,19 @@ function reassignRoles(ts) {
 }
 
 // ГЛАВНЫЙ ИГРОВОЙ ЦИКЛ 
+//ts время прошедшее с начала загрузки страницы
 function update(ts) {
   if (!lastFrameTime) lastFrameTime = ts
-  const dt = ts - lastFrameTime   // дельта времени с предыдущего кадра (в миллисекундах)
+  const dt = ts - lastFrameTime   // дельта времени с предыдущего кадра для плавности анимации
   lastFrameTime = ts
 
-  // 1. Испарение феромонов (уменьшаем силу, удаляем почти невидимые)
+  //  Испарение феромонов (уменьшаем силу, удаляем почти невидимые)
   pheromones = pheromones
+  //map для создания массива 
     .map(p => ({ ...p, strength: p.strength - 0.008 }))
-    .filter(p => p.strength > 0.05)
+    .filter(p => p.strength > 0.05)     //остаются феромоны только у которых сила>0.05
 
-  // 2. Размножение тли в подземных фермах и на поверхности
+  //  Размножение тли в подземных фермах и на поверхности
   // В фермах: каждая тля может породить новую с малым шансом, но не превышая 5 особей на камеру
   for (const ch of chambers) {
     if (ch.type === 'farm' && ch.aphids !== undefined && ch.aphids < 5 && Math.random() < 0.002) {
@@ -357,7 +372,7 @@ function update(ts) {
     }
   }
 
-  // 3. Матка откладывает яйца с заданным интервалом, тратя еду
+  // Матка откладывает яйца с заданным интервалом, тратя еду
   if (ts - lastEggTime > cfg.queenEggInterval * 1000 && colonyFood >= 5) {
     colonyFood -= 5
     lastEggTime = ts
@@ -367,7 +382,7 @@ function update(ts) {
     }
   }
 
-  // 4. Развитие расплода в камерах (только в 'brood')
+  // Развитие расплода в камерах (только в 'brood')
   for (const ch of chambers) {
     if (ch.type !== 'brood') continue
     for (let i = ch.brood.length - 1; i >= 0; i--) {
@@ -377,8 +392,8 @@ function update(ts) {
         ch.brood[i] = { ...b, type: 'larva', hunger: 10, feedCount: 0, lastFedTime: ts }
       } else if (b.type === 'larva') {
         // Голодание личинки (линейно теряет сытость, умирает при 0)
-        b.hunger = 10 - (ts - b.lastFedTime) / 15000 * 10
-        if (b.hunger <= 0) { ch.brood.splice(i, 1); continue }
+        b.hunger = 10 - (ts - b.lastFedTime) / 15000 * 10   //уменьшается  от 10 до 0 за 15 секунд.
+        if (b.hunger <= 0) { ch.brood.splice(i, 1); continue }  //удаляем если оголодала личинка
         // Если достаточно кормлений – окукливание (после 5 кормлений)
         if (b.feedCount >= 5) ch.brood[i] = { id: b.id, type: 'pupa', spawnTime: ts }
       } else if (b.type === 'pupa' && ts - b.spawnTime > 12000) {
@@ -389,7 +404,7 @@ function update(ts) {
     }
   }
 
-  // 5. Строительство камер (обновление прогресса)
+  // Строительство камер в муравейнике
   for (const ch of chambers) {
     if (ch.building) {
       // Прогресс строительства зависит от реального времени (buildTimeSec)
@@ -411,10 +426,10 @@ function update(ts) {
     }
   }
 
-  // 6. Перераспределение ролей (солдаты/рабочие/фуражиры)
+  //  Перераспределение ролей (солдаты/рабочие/фуражиры)
   reassignRoles(ts)
 
-  // 7. Обновление врагов (пауков)
+  // Обновление врагов (пауков)
   enemies = enemies.map(en => {
     let { x, y, angle } = en
     // Поиск ближайшего муравья в радиусе атаки
@@ -428,11 +443,11 @@ function update(ts) {
     if (closestAnt) {
       // Атака муравья, если прошло достаточно времени (каждые 600 мс)
       if (ts - en.lastAttackTime > 600) {
-        ants = ants.filter(a => a.id !== closestAnt.id)
-        en.lastAttackTime = ts
+        ants = ants.filter(a => a.id !== closestAnt.id) //муравей погиб
+        en.lastAttackTime = ts                          //обновляем время последнего нападения
       }
       // Двигаемся к цели
-      angle = Math.atan2(closestAnt.y - y, closestAnt.x - x)
+      angle = Math.atan2(closestAnt.y - y, closestAnt.x - x)//вычисляет угол направления к муравью
     } else {
       // Случайное блуждание с избеганием гнезда (чтобы не «залипал» в гнезде)
       angle += rnd(-0.15, 0.15)
@@ -441,13 +456,13 @@ function update(ts) {
       }
     }
 
-    // Перемещение с отражением от стен (как бильярдный шар)
+    // Перемещение с отражением от стен 
     let nx = x + Math.cos(angle) * cfg.enemySpeed
     let ny = y + Math.sin(angle) * cfg.enemySpeed
     if (nx < 15 || nx > width - 15) {
       angle = Math.PI - angle          // отражение по горизонтали
       nx = clamp(nx, 15, width - 15)
-      angle += rnd(-0.2, 0.2)         // небольшой шум, чтобы не зацикливался
+      angle += rnd(-0.2, 0.2)         // случайное ищменение угла (чтобы не зацикливался)
     }
     if (ny < 15 || ny > height - 15) {
       angle = -angle                   // отражение по вертикали
@@ -458,7 +473,7 @@ function update(ts) {
     return { ...en, x: nx, y: ny, angle }
   })
 
-  // 8. Атаки солдат
+  // Атаки солдат
   for (const a of ants) {
     if (a.role !== 'soldier') continue
     let closestEnemy = null
@@ -475,23 +490,23 @@ function update(ts) {
   }
   enemies = enemies.filter(e => e.health > 0)  // удаляем мёртвых пауков
 
-  // 9. Появление новых врагов, если их меньше максимума
-  if (enemies.length < cfg.maxEnemies && Math.random() < 0.001) {
+  //  Появление новых врагов, если их меньше максимума
+  if (enemies.length < cfg.maxEnemies && Math.random() < 0.001) { //шанс появления 0.01%
     addRandomEnemy()
   }
 
-  // 10. Обновление муравьёв (фуражиры, рабочие, солдаты) – самая объёмная часть логики
-  ants = ants.map(a => {
+  // Обновление муравьёв (фуражиры, рабочие, солдаты) – самая объёмная часть логики
+  ants = ants.map(a => { //.map созаёт каждый раз новый массив
     let { x, y, angle, hasFood, role, lastPheromoneTime, lastFeedTime } = a
 
     if (role === 'worker') {
-      // ----- РАБОЧИЙ -----
+      // рабочий
       let fed = false
       // Приоритет – кормление личинок (если есть еда и прошёл интервал 1500 мс)
       if (colonyFood >= 1 && ts - lastFeedTime > 1500) {
         for (const ch of chambers) {
           if (ch.type !== 'brood') continue
-          const larva = ch.brood.find(b => b.type === 'larva' && b.hunger < 10)
+          const larva = ch.brood.find(b => b.type === 'larva' && b.hunger < 10)//поиск ненакормленной личинки
           if (larva) {
             const d = dist(x, y, ch.x, ch.y)
             if (d < CHAMBER_RADIUS + 5) {
@@ -504,7 +519,7 @@ function update(ts) {
               fed = true
               break
             } else {
-              // Двигаемся к камере с голодной личинкой (чуть быстрее, чем блуждание)
+              // Двигаемся к камере с голодной личинкой двигаясь со скоростью обычного муравья
               angle = lerpAngle(angle, Math.atan2(ch.y - y, ch.x - x), 0.1)
               x += Math.cos(angle) * cfg.antSpeed * 0.7
               y += Math.sin(angle) * cfg.antSpeed * 0.7
@@ -555,15 +570,15 @@ function update(ts) {
 
       // Инициирование строительства, если все камеры для расплода заполнены
       if (
-        autoBuild.value &&
-        !chambers.some(c => c.building) &&
+        autoBuild.value &&  //включено автостроительство
+        !chambers.some(c => c.building) &&  //нет уже строищихся камер
         chambers.filter(c => c.type === 'brood').reduce((s, c) => s + c.brood.length, 0) >= chambers.filter(c => c.type === 'brood').length * CHAMBER_CAPACITY &&
-        colonyFood >= buildCost.value
+        colonyFood >= buildCost.value//хватает еды
       ) {
         startBuilding('brood')
       }
     } else if (role === 'soldier') {
-      // ----- СОЛДАТ -----
+      // СОЛДАТ 
       let closestEnemy = null
       let closestDist = cfg.soldierAttackRadius * 1.5  // зона обнаружения для патруля чуть больше
       for (const en of enemies) {
@@ -593,10 +608,10 @@ function update(ts) {
       }
       hasFood = false   // солдаты не носят еду
     } else {
-      // ----- ФУРАЖИР -----
-      if (hasFood) {
+      //  ФУРАЖИР 
+      if (hasFood) {  //если он с едой
         // Несёт еду домой
-        if (dist(x, y, nest.x, nest.y) < NEST_SIZE / 2) {
+        if (dist(x, y, nest.x, nest.y) < NEST_SIZE / 2) {//если находится в хранилище
           colonyFood++   // сдал еду в хранилище
           hasFood = false
         } else {
@@ -610,16 +625,16 @@ function update(ts) {
             lastPheromoneTime = ts
           }
         }
-      } else {
+      } else {//если не несёт еду
         // Поиск ближайшей еды в радиусе восприятия
-        let closestFoodIdx = -1
-        let closestFoodDist = cfg.perceptionRadius
+        let closestFoodIdx = -1 //источник не найлен
+        let closestFoodDist = cfg.perceptionRadius //дальность обзора
         for (let i = 0; i < foods.length; i++) {
-          const d = dist(x, y, foods[i].x, foods[i].y)
+          const d = dist(x, y, foods[i].x, foods[i].y) 
           if (d < closestFoodDist) { closestFoodDist = d; closestFoodIdx = i }
         }
 
-        if (closestFoodIdx !== -1) {
+        if (closestFoodIdx !== -1) {//нашел источник еды
           const f = foods[closestFoodIdx]
           // Находится ли муравей в радиусе доступа к источнику?
           if (closestFoodDist < cfg.foodPickupRadius) {
@@ -677,48 +692,48 @@ function update(ts) {
     // Принудительное ограничение координат всех муравьёв, чтобы никто не пропадал за границами
     x = clamp(x, 0, width)
     y = clamp(y, 0, height)
-
+    //обновляем данные
     return { ...a, x, y, angle, hasFood, role, lastPheromoneTime, lastFeedTime, lastAttackTime: a.lastAttackTime, lastMilkingTime: a.lastMilkingTime }
   })
 
-  // 11. Пополнение еды, если источников мало
+  //  Пополнение еды, если источников мало
   if (foods.length < 15 && Math.random() < 0.005) addRandomFoodSource()
 
   draw()
-  animationId = requestAnimationFrame(update)
+  animationId = requestAnimationFrame(update)//вызываем метод браузера для создания игрового цикла
 }
 
 //  ОТРИСОВКА 
 function draw() {
-  ctx.clearRect(0, 0, width, height)
-  ctx.fillStyle = '#3b5e2b'
+  ctx.clearRect(0, 0, width, height) //очищаем всё
+  ctx.fillStyle = '#3b5e2b' //зелёный фон
   ctx.fillRect(0, 0, width, height)  // фон
 
-  // --- Феромоны ---
+  //  Феромоны 
   for (const p of pheromones) {
-    ctx.beginPath()
-    ctx.moveTo(p.x, p.y)
-    ctx.lineTo(p.x + Math.cos(p.angle) * 3, p.y + Math.sin(p.angle) * 3)
-    ctx.strokeStyle = `rgba(180,220,255,${Math.min(p.strength, 0.6)})`
-    ctx.lineWidth = 1.5
-    ctx.stroke()
+    ctx.beginPath() //для создания точек 
+    ctx.moveTo(p.x, p.y)  //перемещаем перо
+    ctx.lineTo(p.x + Math.cos(p.angle) * 3, p.y + Math.sin(p.angle) * 3)  //проводим линию
+    ctx.strokeStyle = `rgba(180,220,255,${Math.min(p.strength, 0.6)})`//цвет и прозрачноть 
+    ctx.lineWidth = 1.5 //задаём толщину
+    ctx.stroke()  //рисует
   }
 
   //  Источники еды (с тлёй или без) 
   for (const f of foods) {
     const r = 5 + (f.amount / f.maxAmount) * 8
-    const hue = 120 * (f.amount / f.maxAmount)  // цвет от зелёного (полный) до красного (пустой)
+    const hue = 120 * (f.amount / f.maxAmount)  // цвет от зелёного (120) до красного (0)
     ctx.beginPath()
-    ctx.arc(f.x, f.y, r, 0, 2 * Math.PI)
-    ctx.fillStyle = `hsl(${hue},80%,50%)`
-    ctx.fill()
+    ctx.arc(f.x, f.y, r, 0, 2 * Math.PI)//рисуем полный круг
+    ctx.fillStyle = `hsl(${hue},80%,50%)` //заливка
+    ctx.fill()  //заливаем
 
     // Рисуем тлю на поверхности, если есть (маленькие зелёные точки вокруг)
     if (f.aphids > 0) {
       ctx.fillStyle = '#a0ffa0'
       for (let i = 0; i < f.aphids; i++) {
         const angle = (i / f.aphids) * 2 * Math.PI
-        const ax = f.x + Math.cos(angle) * (r + 4)
+        const ax = f.x + Math.cos(angle) * (r + 4)  //радиус отрисовки тли
         const ay = f.y + Math.sin(angle) * (r + 4)
         ctx.beginPath()
         ctx.arc(ax, ay, 1.5, 0, 2 * Math.PI)
@@ -743,7 +758,7 @@ function draw() {
 
   //  Подземные камеры и туннели 
   const sy = nest.y + SUBTERRANEAN_BASE_Y
-  ctx.save()
+  ctx.save()              //сохраняем текущее состояние холста 
   ctx.translate(0, sy)   // смещаемся в подземную область
 
   // Туннели
@@ -830,7 +845,7 @@ function draw() {
     ctx.translate(en.x, en.y)
     ctx.rotate(en.angle)
 
-    // Тело паука (головогрудь и брюшко)
+    // Тело паука 
     ctx.fillStyle = '#4a1515'
     ctx.beginPath()
     ctx.ellipse(3.5, 0, 3, 2.5, 0, 0, 2 * Math.PI)
@@ -844,9 +859,9 @@ function draw() {
     ctx.strokeStyle = '#2a0808'
     ctx.lineWidth = 1.5
     const legPairs = [
-      { b: 0.7, l: 9, j: 0.4 },
-      { b: 1.1, l: 11, j: 0.5 },
-      { b: 1.5, l: 11, j: 0.5 },
+      { b: 0.7, l: 9, j: 0.4 },//b - угол от которого уходит нога
+      { b: 1.1, l: 11, j: 0.5 },//l - длина ноги 
+      { b: 1.5, l: 11, j: 0.5 },//j - угол добавочный(чтобы ноги не были прямыми палками)
       { b: 1.9, l: 9, j: 0.4 }
     ]
     for (const p of legPairs) {
@@ -860,8 +875,8 @@ function draw() {
         ctx.lineTo(mx + Math.cos(a2) * p.l * 0.5, my + Math.sin(a2) * p.l * 0.5)
         ctx.stroke()
       }
-      drawLeg(-1)
-      drawLeg(1)
+      drawLeg(-1)//слева
+      drawLeg(1)//и справа
     }
 
     // Глаза и хелицеры
@@ -901,7 +916,7 @@ function draw() {
     ctx.fillStyle = a.role === 'worker' ? '#4488ff' :
                     a.role === 'soldier' ? '#ff4444' :
                     a.hasFood ? '#ffaa00' : '#222'
-    const sz = a.role === 'soldier' ? 1.3 : 1
+    const sz = a.role === 'soldier' ? 1.3 : 1 //солдаты чуть больше 
     ctx.beginPath()
     ctx.ellipse(0, 0, ANT_SIZE * 1.2 * sz, ANT_SIZE * 0.7 * sz, 0, 0, 2 * Math.PI)
     ctx.fill()
@@ -922,7 +937,7 @@ function draw() {
 
 //  ЗАПУСК И ОСТАНОВКА 
 onMounted(() => {
-  ctx = canvasRef.value.getContext('2d')
+  ctx = canvasRef.value.getContext('2d') //получаем констекст отрисовки 
   initEnemies()   // врагов создаём до муравьёв, чтобы initAnts мог использовать их количество
   initChambers()
   initFoods()
@@ -931,11 +946,11 @@ onMounted(() => {
   foodRespawnTimer = setInterval(() => {
     if (foods.length < 15) addRandomFoodSource()
   }, 5000)
-  lastFrameTime = performance.now()
+  lastFrameTime = performance.now() //сохраняем точное время
   animationId = requestAnimationFrame(update)
 })
 
-onUnmounted(() => {
+onUnmounted(() => {//удаляем при выходе из страницы
   cancelAnimationFrame(animationId)
   clearInterval(foodRespawnTimer)
 })
